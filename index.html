@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Secure Messaging</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        }
+
+        body {
+            background: #f0f2f5;
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 800px;
+            height: 90vh;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        #loginPage {
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+            background: linear-gradient(145deg, #0084ff, #00b4ff);
+            color: white;
+        }
+
+        #messagePage {
+            display: none;
+            height: 100%;
+            flex-direction: column;
+        }
+
+        .header {
+            padding: 20px;
+            background: white;
+            border-bottom: 1px solid #eee;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 1.5rem;
+            color: #1a1a1a;
+        }
+
+        .header p {
+            font-size: 0.9rem;
+            color: #666;
+            margin-top: 5px;
+        }
+
+        input[type="password"] {
+            width: 100%;
+            max-width: 300px;
+            padding: 12px;
+            margin: 20px 0;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            background: rgba(255,255,255,0.9);
+        }
+
+        #messagesList {
+            flex-grow: 1;
+            overflow-y: auto;
+            padding: 20px;
+            display: flex;
+            flex-direction: column-reverse;
+            background: #f8f9fa;
+        }
+
+        .message {
+            max-width: 80%;
+            padding: 12px 16px;
+            margin: 8px 0;
+            border-radius: 16px;
+            position: relative;
+            word-wrap: break-word;
+            align-self: flex-start;
+            background: white;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+            border: 1px solid #eee;
+        }
+
+        .message .timestamp {
+            font-size: 0.75rem;
+            color: #666;
+            margin-top: 6px;
+        }
+
+        .input-container {
+            padding: 16px;
+            background: white;
+            border-top: 1px solid #eee;
+            display: flex;
+            gap: 10px;
+            align-items: flex-end;
+        }
+
+        textarea {
+            flex-grow: 1;
+            padding: 12px;
+            border: 1px solid #e0e0e0;
+            border-radius: 24px;
+            resize: none;
+            max-height: 120px;
+            min-height: 48px;
+            font-size: 15px;
+            line-height: 1.4;
+            background: #f8f9fa;
+            transition: all 0.2s ease;
+        }
+
+        textarea:focus {
+            outline: none;
+            border-color: #0084ff;
+            background: white;
+        }
+
+        button {
+            background: #0084ff;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 24px;
+            cursor: pointer;
+            font-size: 15px;
+            font-weight: 600;
+            transition: background 0.2s ease;
+        }
+
+        button:hover {
+            background: #0073e6;
+        }
+
+        #charCount {
+            font-size: 12px;
+            color: #666;
+            position: absolute;
+            right: 20px;
+            bottom: 75px;
+        }
+
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #c1c1c1;
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #a8a8a8;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div id="loginPage">
+            <h1>Secure Messaging</h1>
+            <p>Enter password to continue</p>
+            <input type="password" id="password" placeholder="Enter password">
+            <button onclick="login()">Login</button>
+        </div>
+
+        <div id="messagePage">
+            <div class="header">
+                <h1>Messages</h1>
+                <p>Messages will be deleted after 24 hours</p>
+            </div>
+            <div id="messagesList"></div>
+            <div id="charCount">0/5000 characters</div>
+            <div class="input-container">
+                <textarea id="messageInput" placeholder="Type your message (max 5000 characters)" maxlength="5000"></textarea>
+                <button onclick="sendMessage()">Send</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const CORRECT_PASSWORD = "demo123"; // Change this to your desired password
+        
+        // Check for stored messages and clean up expired ones on load
+        window.onload = function() {
+            cleanupExpiredMessages();
+        };
+
+        function login() {
+            const password = document.getElementById('password').value;
+            if (password === CORRECT_PASSWORD) {
+                document.getElementById('loginPage').style.display = 'none';
+                document.getElementById('messagePage').style.display = 'flex';
+                loadMessages();
+            } else {
+                alert('Incorrect password');
+            }
+        }
+
+        // Auto-resize textarea
+        const textarea = document.getElementById('messageInput');
+        textarea.addEventListener('input', function() {
+            this.style.height = 'auto';
+            this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+        });
+
+        function sendMessage() {
+            const messageInput = document.getElementById('messageInput');
+            const message = messageInput.value.trim();
+            
+            if (message) {
+                const timestamp = new Date().getTime();
+                const messageObj = {
+                    text: message,
+                    timestamp: timestamp,
+                    expiresAt: timestamp + (24 * 60 * 60 * 1000) // 24 hours from now
+                };
+
+                // Get existing messages
+                let messages = JSON.parse(localStorage.getItem('messages') || '[]');
+                messages.push(messageObj);
+                localStorage.setItem('messages', JSON.stringify(messages));
+
+                messageInput.value = '';
+                messageInput.style.height = '48px';
+                updateCharCount();
+                loadMessages();
+            }
+        }
+
+        // Handle Enter key to send message
+        textarea.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage();
+            }
+        });
+
+        function loadMessages() {
+            cleanupExpiredMessages();
+            const messages = JSON.parse(localStorage.getItem('messages') || '[]');
+            const messagesList = document.getElementById('messagesList');
+            messagesList.innerHTML = '';
+
+            messages.forEach(msg => {
+                const messageDiv = document.createElement('div');
+                messageDiv.className = 'message';
+                messageDiv.innerHTML = `
+                    <div>${msg.text}</div>
+                    <div class="timestamp">
+                        Sent: ${new Date(msg.timestamp).toLocaleString()}<br>
+                        Expires: ${new Date(msg.expiresAt).toLocaleString()}
+                    </div>
+                `;
+                messagesList.appendChild(messageDiv);
+            });
+        }
+
+        function cleanupExpiredMessages() {
+            const now = new Date().getTime();
+            let messages = JSON.parse(localStorage.getItem('messages') || '[]');
+            messages = messages.filter(msg => msg.expiresAt > now);
+            localStorage.setItem('messages', JSON.stringify(messages));
+        }
+
+        // Character counter
+        document.getElementById('messageInput').addEventListener('input', updateCharCount);
+
+        function updateCharCount() {
+            const messageInput = document.getElementById('messageInput');
+            const charCount = document.getElementById('charCount');
+            charCount.textContent = `${messageInput.value.length}/5000 characters`;
+        }
+
+        // Auto-refresh messages every minute
+        setInterval(loadMessages, 60000);
+    </script>
+</body>
+</html>
