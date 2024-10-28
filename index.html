@@ -4,11 +4,93 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Secure Messaging</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/lucide/0.292.0/umd/lucide.min.js"></script>
-    <!-- Previous styles remain the same -->
     <style>
-        /* Previous styles remain unchanged */
+        body {
+            margin: 0;
+            padding: 20px;
+            background: #1a1a1a;
+            color: #ffffff;
+            font-family: Arial, sans-serif;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            font-size: 24px;
+            margin-bottom: 20px;
+        }
+
+        p {
+            margin-bottom: 15px;
+        }
+
+        input[type="password"], textarea {
+            width: 100%;
+            padding: 10px;
+            margin: 10px 0;
+            background: #333;
+            border: 1px solid #444;
+            color: white;
+            border-radius: 4px;
+        }
+
+        button {
+            background: #444;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+
+        button:hover {
+            background: #555;
+        }
+
+        #messagePage {
+            display: none;
+        }
+
+        #messagesList {
+            margin-top: 20px;
+            border-top: 1px solid #333;
+            padding-top: 20px;
+        }
+
+        .message {
+            background: #333;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+        }
+
+        .message .timestamp {
+            font-size: 12px;
+            color: #999;
+            margin-top: 5px;
+        }
+
+        #charCount {
+            color: #999;
+            font-size: 12px;
+            margin: 5px 0;
+        }
+
+        .input-area {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 90%;
+            max-width: 800px;
+            background: #1a1a1a;
+            padding: 10px 0;
+        }
     </style>
 </head>
 <body>
@@ -16,89 +98,38 @@
         <div id="loginPage">
             <h1>Secure Messaging</h1>
             <p>Enter password to access your messages</p>
-            <input type="password" id="password" placeholder="Enter password (e.g., Cross123)">
+            <input type="password" id="password" placeholder="Enter password">
             <button onclick="login()">Login</button>
         </div>
 
         <div id="messagePage">
-            <div class="header">
-                <h1>Messages</h1>
-                <p>Messages will be deleted after 24 hours</p>
-                <button id="downloadLogsBtn" onclick="downloadLogs()">
-                    <i data-lucide="download"></i>
-                    Download Logs
-                </button>
-            </div>
+            <h1>Messages</h1>
+            <p>Messages will be deleted after 24 hours</p>
+            <button onclick="downloadLogs()">Download Logs</button>
             <div id="messagesList"></div>
-            <div id="charCount">0/5000 characters</div>
-            <div class="input-container">
-                <textarea id="messageInput" placeholder="Type your message (max 5000 characters)" maxlength="5000"></textarea>
+            <div class="input-area">
+                <div id="charCount">0/5000 characters</div>
+                <textarea 
+                    id="messageInput" 
+                    placeholder="Type your message (max 5000 characters)" 
+                    maxlength="5000"
+                    rows="3"
+                ></textarea>
                 <button onclick="sendMessage()">Send</button>
             </div>
         </div>
     </div>
 
     <script>
-        lucide.createIcons();
-        
-        const LOG_INTERVAL = 30 * 60 * 1000; // 30 minutes
         let currentPassword = '';
-        let savedMessages = new Set();
-
-        // Encrypt data using password
-        function encrypt(text, password) {
-            return CryptoJS.AES.encrypt(text, password).toString();
-        }
-
-        // Decrypt data using password
-        function decrypt(ciphertext, password) {
-            try {
-                const bytes = CryptoJS.AES.decrypt(ciphertext, password);
-                return bytes.toString(CryptoJS.enc.Utf8);
-            } catch (e) {
-                return null;
-            }
-        }
-
-        // Get messages for current password
-        function getMessages() {
-            const encryptedData = localStorage.getItem(`messages_${currentPassword}`);
-            if (!encryptedData) return [];
-            
-            const decrypted = decrypt(encryptedData, currentPassword);
-            return decrypted ? JSON.parse(decrypted) : [];
-        }
-
-        // Save messages for current password
-        function saveMessages(messages) {
-            const encrypted = encrypt(JSON.stringify(messages), currentPassword);
-            localStorage.setItem(`messages_${currentPassword}`, encrypted);
-        }
-
-        // Get saved message IDs for current password
-        function getSavedMessageIds() {
-            const encryptedData = localStorage.getItem(`saved_${currentPassword}`);
-            if (!encryptedData) return new Set();
-            
-            const decrypted = decrypt(encryptedData, currentPassword);
-            return new Set(decrypted ? JSON.parse(decrypted) : []);
-        }
-
-        // Save message IDs for current password
-        function saveSavedMessageIds(savedIds) {
-            const encrypted = encrypt(JSON.stringify([...savedIds]), currentPassword);
-            localStorage.setItem(`saved_${currentPassword}`, encrypted);
-        }
-
+        
         function login() {
             const password = document.getElementById('password').value;
             if (password) {
                 currentPassword = password;
-                savedMessages = getSavedMessageIds();
                 document.getElementById('loginPage').style.display = 'none';
-                document.getElementById('messagePage').style.display = 'flex';
+                document.getElementById('messagePage').style.display = 'block';
                 loadMessages();
-                setInterval(saveLogsToFile, LOG_INTERVAL);
             }
         }
 
@@ -108,9 +139,8 @@
             
             if (message) {
                 const timestamp = new Date().getTime();
-                const messageId = `msg_${timestamp}`;
                 const messageObj = {
-                    id: messageId,
+                    id: `msg_${timestamp}`,
                     text: message,
                     timestamp: timestamp,
                     expiresAt: timestamp + (24 * 60 * 60 * 1000)
@@ -118,20 +148,20 @@
 
                 let messages = getMessages();
                 messages.push(messageObj);
-                saveMessages(messages);
+                localStorage.setItem(`messages_${currentPassword}`, JSON.stringify(messages));
 
                 messageInput.value = '';
-                messageInput.style.height = '48px';
                 updateCharCount();
                 loadMessages();
             }
         }
 
-        function cleanupExpiredMessages() {
-            const now = new Date().getTime();
-            let messages = getMessages();
-            messages = messages.filter(msg => msg.expiresAt > now);
-            saveMessages(messages);
+        function getMessages() {
+            try {
+                return JSON.parse(localStorage.getItem(`messages_${currentPassword}`) || '[]');
+            } catch {
+                return [];
+            }
         }
 
         function loadMessages() {
@@ -143,57 +173,30 @@
             messages.forEach(msg => {
                 const messageDiv = document.createElement('div');
                 messageDiv.className = 'message';
-                
-                const saveIconClass = savedMessages.has(msg.id) ? 'save-icon saved' : 'save-icon';
-                
                 messageDiv.innerHTML = `
-                    <div class="message-content">
-                        <div>${msg.text}</div>
-                        <div class="timestamp">
-                            Sent: ${new Date(msg.timestamp).toLocaleString()}<br>
-                            Expires: ${new Date(msg.expiresAt).toLocaleString()}
-                        </div>
-                    </div>
-                    <div class="${saveIconClass}" onclick="toggleSaveMessage('${msg.id}')">
-                        <i data-lucide="save"></i>
+                    <div>${msg.text}</div>
+                    <div class="timestamp">
+                        Sent: ${new Date(msg.timestamp).toLocaleString()}
                     </div>
                 `;
                 messagesList.appendChild(messageDiv);
             });
-            
-            lucide.createIcons();
         }
 
-        function toggleSaveMessage(messageId) {
-            if (savedMessages.has(messageId)) {
-                savedMessages.delete(messageId);
-            } else {
-                savedMessages.add(messageId);
-            }
-            
-            saveSavedMessageIds(savedMessages);
-            loadMessages();
-            saveLogsToFile();
-        }
-
-        function saveLogsToFile() {
-            const messages = getMessages();
-            const savedLogs = messages
-                .filter(msg => savedMessages.has(msg.id))
-                .map(msg => `[${new Date(msg.timestamp).toLocaleString()}] ${msg.text}`)
-                .join('\n');
-            
-            // Encrypt and save the logs
-            const encrypted = encrypt(savedLogs, currentPassword);
-            localStorage.setItem(`logs_${currentPassword}`, encrypted);
+        function cleanupExpiredMessages() {
+            const now = new Date().getTime();
+            let messages = getMessages();
+            messages = messages.filter(msg => msg.expiresAt > now);
+            localStorage.setItem(`messages_${currentPassword}`, JSON.stringify(messages));
         }
 
         function downloadLogs() {
-            const encryptedLogs = localStorage.getItem(`logs_${currentPassword}`);
-            if (!encryptedLogs) return;
+            const messages = getMessages();
+            const log = messages
+                .map(msg => `[${new Date(msg.timestamp).toLocaleString()}] ${msg.text}`)
+                .join('\n');
             
-            const savedLog = decrypt(encryptedLogs, currentPassword) || '';
-            const blob = new Blob([savedLog], { type: 'text/plain' });
+            const blob = new Blob([log], { type: 'text/plain' });
             const url = window.URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
@@ -204,26 +207,23 @@
             window.URL.revokeObjectURL(url);
         }
 
-        // Previous event listeners remain the same
-        const textarea = document.getElementById('messageInput');
-        textarea.addEventListener('input', function() {
-            this.style.height = 'auto';
-            this.style.height = Math.min(this.scrollHeight, 120) + 'px';
-            updateCharCount();
-        });
-
-        textarea.addEventListener('keydown', function(e) {
-            if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                sendMessage();
-            }
-        });
-
         function updateCharCount() {
             const messageInput = document.getElementById('messageInput');
             const charCount = document.getElementById('charCount');
             charCount.textContent = `${messageInput.value.length}/5000 characters`;
         }
+
+        // Event listeners
+        document.getElementById('messageInput').addEventListener('input', updateCharCount);
+        document.getElementById('password').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') login();
+        });
+        document.getElementById('messageInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage();
+            }
+        });
     </script>
 </body>
 </html>
